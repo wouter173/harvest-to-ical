@@ -1,0 +1,3 @@
+GET {{$dotenv HOST}}/v2/time_entries
+Authorization: Bearer {{$dotenv HARVEST_TOKEN}}
+Harvest-Account-Id: {{$dotenv HARVEST_ACCOUNT_ID}}
