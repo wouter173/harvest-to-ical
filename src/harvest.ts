@@ -35,9 +35,7 @@ export async function getTimeSheet() {
   const json = await res.json();
   const data = responseSchema.parse(json);
 
-  const filteredEntries = data.time_entries.filter(
-    (entry) => entry.started_time !== null && entry.ended_time !== null
-  );
+  const filteredEntries = data.time_entries.filter((entry) => entry.started_time !== null && entry.ended_time !== null);
 
   return { ...data, time_entries: filteredEntries };
 }

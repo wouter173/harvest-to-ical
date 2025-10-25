@@ -32,11 +32,48 @@ function formatDateToICS(date: Date): string {
 
 function escapeICSText(text: string | null): string {
   if (!text) return "";
-  return text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+}
+
+function createEventSegments(entryId: number, startDate: Date, endDate: Date, summary: string, description: string): string[] {
+  const events: string[] = [];
+
+  let actualEndDate = endDate;
+  if (endDate < startDate) {
+    actualEndDate = new Date(startDate);
+    actualEndDate.setDate(actualEndDate.getDate() + 1);
+    actualEndDate.setHours(endDate.getHours(), endDate.getMinutes(), endDate.getSeconds());
+  }
+
+  let currentStart = new Date(startDate);
+  let dayCounter = 1;
+
+  while (currentStart < actualEndDate) {
+    const endOfCurrentDay = new Date(currentStart);
+    endOfCurrentDay.setHours(23, 59, 59, 999);
+
+    const segmentEnd = actualEndDate <= endOfCurrentDay ? actualEndDate : endOfCurrentDay;
+
+    const isMultiDay = actualEndDate > endOfCurrentDay || dayCounter > 1;
+
+    const uid = isMultiDay ? `harvest-${entryId}-day${dayCounter}@harvestapp.com` : `harvest-${entryId}@harvestapp.com`;
+
+    events.push(`BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:${formatDateToICS(new Date())}
+DTSTART:${formatDateToICS(currentStart)}
+DTEND:${formatDateToICS(segmentEnd)}
+SUMMARY:${escapeICSText(summary)}
+DESCRIPTION:${description}
+END:VEVENT`);
+
+    currentStart = new Date(currentStart);
+    currentStart.setDate(currentStart.getDate() + 1);
+    currentStart.setHours(0, 0, 0, 0);
+    dayCounter++;
+  }
+
+  return events;
 }
 
 app.get("/calendar.ics", async (req, res) => {
@@ -44,11 +81,8 @@ app.get("/calendar.ics", async (req, res) => {
     const data = await getTimeSheet();
 
     const events = data.time_entries
-      .map((entry) => {
-        const startDate = parseTimeToDate(
-          entry.spent_date,
-          entry.started_time!
-        );
+      .flatMap((entry) => {
+        const startDate = parseTimeToDate(entry.spent_date, entry.started_time!);
         const endDate = parseTimeToDate(entry.spent_date, entry.ended_time!);
 
         const clientName = entry.client?.name || "No Client";
@@ -58,18 +92,9 @@ app.get("/calendar.ics", async (req, res) => {
         const notes = escapeICSText(entry.notes);
 
         const summary = `${projectName} - ${taskName}`;
-        const description = notes
-          ? `Notes: ${notes}\nClient: ${clientName}`
-          : "";
+        const description = notes ? `Notes: ${notes}\nClient: ${clientName}` : `Client: ${clientName}`;
 
-        return `BEGIN:VEVENT
-UID:harvest-${entry.id}@harvestapp.com
-DTSTAMP:${formatDateToICS(new Date())}
-DTSTART:${formatDateToICS(startDate)}
-DTEND:${formatDateToICS(endDate)}
-SUMMARY:${escapeICSText(summary)}
-DESCRIPTION:${description}
-END:VEVENT`;
+        return createEventSegments(entry.id, startDate, endDate, summary, description);
       })
       .join("\n");
 
@@ -88,6 +113,4 @@ END:VCALENDAR`;
   }
 });
 
-app.listen(3000, () =>
-  console.log("ICS feed running on http://localhost:3000/calendar.ics")
-);
+app.listen(3000, () => console.log("ICS feed running on http://localhost:3000/calendar.ics"));
