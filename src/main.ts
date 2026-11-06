@@ -1,8 +1,11 @@
 import express from "express";
-import { getTimeSheet } from "./harvest";
-import { parseTimeToDate, createEventSegments, generateICSEvent, generateICSCalendar, escapeICSText } from "./ical";
+import { getTimeSheet } from "./harvest.ts";
+import { parseTimeToDate, createEventSegments, generateICSEvent, generateICSCalendar, escapeICSText } from "./ical.ts";
+import morgan from "morgan";
 
 const app = express();
+
+app.use(morgan("common"));
 
 app.get("/calendar.ics", async (req, res) => {
   if (req.query.token !== process.env.INTERNAL_TOKEN) {
